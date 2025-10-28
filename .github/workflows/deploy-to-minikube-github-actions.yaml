@@ -23,7 +23,7 @@ jobs:
       run:
         kubectl apply -f k8s-node-app.yaml
     - name: Wait for Pod Readiness
-        run: |
+      run: |
           echo "Waiting for nodejs-app Pod to be ready..."
           # Let's wait up to 5 minutes for app=nodejs-app pod to be ready
           kubectl wait --for=condition=ready pod -l app=nodejs-app --timeout=300s
