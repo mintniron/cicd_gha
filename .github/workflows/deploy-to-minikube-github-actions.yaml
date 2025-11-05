@@ -4,21 +4,21 @@ on: [push]
   
 jobs:
   job1:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     name: build Node.js Docker Image and deploy to minikube
     steps:
     - uses: actions/checkout@v2
     - name: Start minikube
-      uses: medyagh/setup-minikube@master
+      uses: medyagh/setup-minikube@v0.3.1\
     - name: Try the cluster !
       run: kubectl get pods -A
     - name: Build image
       run: |
-          export SHELL=/bin/bash
-          eval $(minikube -p minikube docker-env)
-          docker build -f ./Dockerfile -t devopshint/node-app:latest .
-          echo -n "verifying images:"
-          docker images         
+        eval $(minikube -p minikube docker-env)
+        IMAGE_TAG=${{ github.sha }}
+        docker build -t devopshint/node-app:${IMAGE_TAG} .
+        sed -i "s|image: devopshint/node-app:.*|image: devopshint/node-app:${IMAGE_TAG}|" k8s-node-app.yaml
+
     - name: Deploy to minikube
       run:
         kubectl apply -f k8s-node-app.yaml
@@ -28,8 +28,17 @@ jobs:
           # Let's wait up to 5 minutes for app=nodejs-app pod to be ready
           kubectl wait --for=condition=ready pod -l app=nodejs-app --timeout=300s
           echo "nodejs-app Pod is now ready!"
-    - name: Test service URLs
+   
+    - name: Health Check
       run: |
-          minikube service list
-          minikube service nodejs-app --url
-
+        URL=$(minikube service nodejs-app --url)
+        for i in {1..30}; do
+          if curl -fs "$URL" > /dev/null; then
+            echo "App's healthy"
+            exit 0
+          fi
+          echo "Waiting for app... ($i/30)"
+          sleep 5
+        done
+        echo "App did not respond"
+        exit 1
