@@ -18,7 +18,7 @@ jobs:
         IMAGE_TAG=${{ github.sha }}
         docker build -t devopshint/node-app:${IMAGE_TAG} .
         sed -i "s|image: devopshint/node-app:.*|image: devopshint/node-app:${IMAGE_TAG}|" k8s-node-app.yaml
-
+   
     - name: Deploy to minikube
       run: |
         kubectl apply -f k8s-node-app.yaml
@@ -29,13 +29,11 @@ jobs:
           kubectl wait --for=condition=ready pod -l app=nodejs-app --timeout=300s
           echo "nodejs-app Pod is now ready!"
           
-
-     - name: Health Check
+    - name: Health Check
       run: |
         echo "Starting temporary port-forward to access the service"
         kubectl port-forward svc/nodejs-app 8080:80 &
         PF_PID=$!
-
         echo "Waiting for app to respond on localhost:8080"
         # Waiting 300s max, checking every 5s
         SECONDS=0
@@ -48,6 +46,5 @@ jobs:
           echo "App not ready yet... waited ${SECONDS}s"
           sleep 5
         done
-
         echo “Healthy and responding!"
         kill $PF_PID
