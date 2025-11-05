@@ -28,27 +28,26 @@ jobs:
           # Let's wait up to 5 minutes for app=nodejs-app pod to be ready
           kubectl wait --for=condition=ready pod -l app=nodejs-app --timeout=300s
           echo "nodejs-app Pod is now ready!"
+          
 
-    - name: Let_s debug
+     - name: Health Check
       run: |
-        echo "Seeing pod and service extended indo"
-        kubectl get pods -o wide
-        kubectl describe svc nodejs-app
-        kubectl describe pod -l app=nodejs-app
-        echo "Endpoints:"
-        kubectl get endpoints nodejs-app
+        echo "Starting temporary port-forward to access the service"
+        kubectl port-forward svc/nodejs-app 8080:80 &
+        PF_PID=$!
 
-   
-    - name: Health Check
-      run: |
-        URL=$(minikube service nodejs-app --url)
-        for i in {1..30}; do
-          if curl -fs "$URL" > /dev/null; then
-            echo "App's healthy"
-            exit 0
+        echo "Waiting for app to respond on localhost:8080"
+        # Waiting 300s max, checking every 5s
+        SECONDS=0
+        until curl -fs http://127.0.0.1:8080 > /dev/null; do
+          if [ $SECONDS -ge 300 ]; then
+            echo "App did not respond after 300 seconds."
+            kill $PF_PID
+            exit 1
           fi
-          echo "Waiting for app... ($i/30)"
+          echo "App not ready yet... waited ${SECONDS}s"
           sleep 5
         done
-        echo "App did not respond"
-        exit 1
+
+        echo “Healthy and responding!"
+        kill $PF_PID
