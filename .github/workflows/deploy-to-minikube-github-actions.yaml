@@ -28,6 +28,16 @@ jobs:
           # Let's wait up to 5 minutes for app=nodejs-app pod to be ready
           kubectl wait --for=condition=ready pod -l app=nodejs-app --timeout=300s
           echo "nodejs-app Pod is now ready!"
+
+    - name: Let_s debug
+      run: |
+        echo "Seeing pod and service extended indo"
+        kubectl get pods -o wide
+        kubectl describe svc nodejs-app
+        kubectl describe pod -l app=nodejs-app
+        echo "Endpoints:"
+        kubectl get endpoints nodejs-app
+
    
     - name: Health Check
       run: |
