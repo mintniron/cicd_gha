@@ -25,11 +25,31 @@ jobs:
     - name: Wait for Pod Readiness
       run: |
           echo "Waiting for nodejs-app Pod to be ready..."
-          # Let's wait up to 5 minutes for app=nodejs-app pod to be ready
-          kubectl wait --for=condition=ready pod -l app=nodejs-app --timeout=300s
+          # Let's wait up to 10 minutes for app=nodejs-app pod to be ready
+          kubectl wait --for=condition=ready pod -l app=nodejs-app --timeout=600s
           echo "nodejs-app Pod is now ready!"
 
-    - name: Test service URLs
+    - name: Health Check
       run: |
-          minikube service list
-          minikube service nodejs-app --url
+        echo "Retrieving Pod name..."
+        POD_NAME=$(kubectl get pod -l app=nodejs-app -o jsonpath='{.items[0].metadata.name}')
+        echo "Found pod: $POD_NAME"
+
+        echo "Starting port-forward from localhost:8080 → pod/$POD_NAME:8080 ..."
+        kubectl port-forward pod/$POD_NAME 8080:8080 &
+        PF_PID=$!
+
+        echo "Waiting for respond on localhost:8080 ..."
+        SECONDS=0
+        until curl -fs http://127.0.0.1:8080 > /dev/null; do
+          if [ $SECONDS -ge 150 ]; then
+            echo "App did not respond after 150 seconds."
+            kill $PF_PID
+            exit 1
+          fi
+          echo "App not ready yet... waited ${SECONDS}s"
+          sleep 5
+        done
+
+        echo “Is healthy and responding!"
+        kill $PF_PID
