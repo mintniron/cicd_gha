@@ -1,37 +1,58 @@
-name: Deploy to Minikube using GitHub Actions
+name: Deploy to minikube using GitHub Actions
 
 on: [push]
-  
+
 jobs:
   job1:
     runs-on: ubuntu-22.04
     name: build Node.js Docker Image and deploy to minikube
+
     steps:
     - uses: actions/checkout@v4
+
     - name: Start minikube
       uses: medyagh/setup-minikube@v0.0.20
-    - name: Try the cluster !
+
+    - name: Verify cluster
       run: kubectl get pods -A
-    - name: Build image
+
+    - name: Build Docker image
       run: |
         eval $(minikube -p minikube docker-env)
         IMAGE_TAG=${{ github.sha }}
+        echo "Building image devopshint/node-app:${IMAGE_TAG}"
         docker build -t devopshint/node-app:${IMAGE_TAG} .
+        echo "Updating image tag in k8s manifest..."
         sed -i "s|image: devopshint/node-app:.*|image: devopshint/node-app:${IMAGE_TAG}|" k8s-node-app.yaml
-   
-    - name: Deploy to minikube
-      run: |
-        kubectl apply -f k8s-node-app.yaml
-    - name: Wait for Pod Readiness
-      run: |
-          echo "Waiting for nodejs-app Pod to be ready..."
-          # Let's wait up to 10 minutes for app=nodejs-app pod to be ready
-          kubectl wait --for=condition=ready pod -l app=nodejs-app --timeout=600s
-          echo "nodejs-app Pod is now ready!"
 
-    - name: Health Check
+    - name: Deploy to minikube
+      run: kubectl apply -f k8s-node-app.yaml
+
+    - name: Wait for pod teadiness
       run: |
-        echo "Retrieving Pod name..."
+        echo "Waiting for nodejs-app pod"
+        kubectl wait --for=condition=ready pod -l app=nodejs-app --timeout=180s
+        echo "nodejs-app pod is ready!"
+
+    - name: Debug if not ready
+      if: failure()
+      run: |
+        echo "==== 🩺 Debugging nodejs-app pod (not ready) ===="
+        echo ""
+        echo "---- pod list ----"
+        kubectl get pods -l app=nodejs-app -o wide || true
+        echo ""
+        echo "---- pod describe ----"
+        kubectl describe pod -l app=nodejs-app || true
+        echo ""
+        echo "---- pod logs ----"
+        kubectl logs -l app=nodejs-app --all-containers --tail=50 || true
+        echo ""
+        echo "==== End of debug info ===="
+
+    - name: Health check
+      run: |
+        echo "Retrieving pod name"
         POD_NAME=$(kubectl get pod -l app=nodejs-app -o jsonpath='{.items[0].metadata.name}')
         echo "Found pod: $POD_NAME"
 
@@ -39,7 +60,7 @@ jobs:
         kubectl port-forward pod/$POD_NAME 8080:8080 &
         PF_PID=$!
 
-        echo "Waiting for respond on localhost:8080 ..."
+        echo "Waiting for response on localhost:8080 ..."
         SECONDS=0
         until curl -fs http://127.0.0.1:8080 > /dev/null; do
           if [ $SECONDS -ge 150 ]; then
@@ -51,5 +72,5 @@ jobs:
           sleep 5
         done
 
-        echo “Is healthy and responding!"
+        echo "App is healthy and responding!"
         kill $PF_PID
