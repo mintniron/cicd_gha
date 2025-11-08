@@ -19,11 +19,11 @@ jobs:
     - name: Build Docker image
       run: |
         eval $(minikube -p minikube docker-env)
-        IMAGE_TAG=${{ github.sha }}
+        IMAGE_TAG=${GITHUB_SHA}
         echo "Building image devopshint/node-app:${IMAGE_TAG}"
         docker build -t devopshint/node-app:${IMAGE_TAG} .
         echo "Updating image tag in k8s manifest..."
-        sed -i "/- name: nodejs-app/,/image:/ s|image: devopshint/node-app:.*|image: devopshint/node-app:${IMAGE_TAG}|" k8s-node-app.yaml
+        sed -i "/name: nodejs-app/{n;s|image: .*|image: devopshint/node-app:${IMAGE_TAG}|;}" k8s-node-app.yaml
         echo "Let_s see image name:"
         grep "image:" k8s-node-app.yaml
 
