@@ -23,8 +23,11 @@ jobs:
       run: |
         eval $(minikube -p minikube docker-env)
         echo "Building image devopshint/node-app:${IMAGE_TAG}"
+        docker build -t devopshint/node-app:${IMAGE_TAG} .
         echo "Updating image tag in k8s manifest..."
-        sed -i "/name: nodejs-app/{n;s|image: .*|image: devopshint/node-app:${IMAGE_TAG}\n        imagePullPolicy: Never|;}" k8s-node-app.yaml
+        sed -i "/name: nodejs-app/{n;s|image: .*|image: devopshint/node-app:${IMAGE_TAG}\n        imagePullPolicy: IfNotPresent|;}" k8s-node-app.yaml
+        echo "Verifying if the image exists"
+        docker images | grep devopshint/node-app
         echo "Let_s see image name:"
         grep "image:" k8s-node-app.yaml
 
